@@ -64,9 +64,15 @@ def process_image(img_path, output_img_path, output_label_path, class_id):
     # Generate smooth Perlin-like noise using multiple scales
     h, w = blurred.shape
     
-    # Create base gradient (warmer at core, cooler at extremities)
+    # Randomize the heat center (simulates different body core positions)
+    # Offset from center by up to 20% of dimensions
+    center_offset_x = int(w * np.random.uniform(-0.2, 0.2))
+    center_offset_y = int(h * np.random.uniform(-0.2, 0.2))
+    center_x = w // 2 + center_offset_x
+    center_y = h // 2 + center_offset_y
+    
+    # Create base gradient (warmer at randomized core, cooler at extremities)
     y_coords, x_coords = np.ogrid[:h, :w]
-    center_y, center_x = h // 2, w // 2
     distance_from_center = np.sqrt((x_coords - center_x)**2 + (y_coords - center_y)**2)
     max_dist = np.sqrt(center_x**2 + center_y**2)
     # Invert: 0 at edges (cold), 1 at center (hot)
@@ -88,22 +94,34 @@ def process_image(img_path, output_img_path, output_label_path, class_id):
     # Normalize heat map to use full 0-255 range
     natural_heat = (natural_heat - natural_heat.min()) / (natural_heat.max() - natural_heat.min())
     
-    # Apply heat gradient only where the person is (mask with blurred silhouette)
-    mask = (blurred > 0).astype(np.float32)
-    background_temp = np.full((h, w), 30, dtype=np.uint8)  # Low ambient heat
+    # Create mask (binary: 1 where person is, 0 where background is)
+    mask = (blurred > 0).astype(np.uint8)
 
-    final_img = np.where(mask > 0, (natural_heat * mask * 255).astype(np.uint8), background_temp)
+    # Background Gradient (cyan to green range)
+    bg_gradient_1 = cv2.GaussianBlur(np.random.randn(h, w).astype(np.float32), (101, 101), 0)
+    bg_gradient_2 = cv2.GaussianBlur(np.random.randn(h, w).astype(np.float32), (51, 51), 0)
+    
+    bg_heat_variation = (bg_gradient_1 * 0.5 + bg_gradient_2 * 0.3)
+    bg_heat_variation = (bg_heat_variation - bg_heat_variation.min()) / (bg_heat_variation.max() - bg_heat_variation.min())
+    
+    # Scale person heat to warmer range (150-250) and background hotter (50-90 for cyan-green)
+    person_heat = (natural_heat * 200 + 50).astype(np.uint8)  # Range: 150-250 (yellow to red)
+    background_heat = (bg_heat_variation * 40 + 50).astype(np.uint8)  # Range: 50-90 (cyan to green)
+    
+    # Combine using mask
+    final_img = np.where(mask == 1, person_heat, background_heat)
     
     # Apply False Color (Thermal effect) - COLORMAP_JET uses blue->green->yellow->red
     # Blue/Green = cold, Yellow/Red = hot
     thermal_img = cv2.applyColorMap(final_img, cv2.COLORMAP_JET)
-
+    
     # 6. Save Files
-    cv2.imwrite(str(output_img_path), final_img)
+    cv2.imwrite(str(output_img_path), thermal_img)
     with open(output_label_path, 'w') as f:
         f.write(label_line)
     
     print(f"Processed: {img_path.name} -> Class {class_id}")
+
 # --- MAIN EXECUTION ---
 # Setup directories
 for split in ['train', 'val']:

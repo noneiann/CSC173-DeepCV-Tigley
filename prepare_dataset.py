@@ -99,7 +99,7 @@ def process_image(img_path, output_img_path, output_label_path, class_id):
     thermal_img = cv2.applyColorMap(final_img, cv2.COLORMAP_JET)
 
     # 6. Save Files
-    cv2.imwrite(str(output_img_path), thermal_img)
+    cv2.imwrite(str(output_img_path), final_img)
     with open(output_label_path, 'w') as f:
         f.write(label_line)
     

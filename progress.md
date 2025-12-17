@@ -9,19 +9,19 @@
 | Milestone           | Status         | Notes                              |
 | ------------------- | -------------- | ---------------------------------- |
 | Dataset Preparation | ✅ Completed   | [X] images downloaded/preprocessed |
-| Initial Training    | ✅ In Progress | [X] epochs completed               |
-| Baseline Evaluation | ⏳ Pending     | Training ongoing                   |
-| Model Fine-tuning   | ⏳ Not Started | Planned for tomorrow               |
+| Initial Training    | ✅ Completed   | [X] epochs completed               |
+| Baseline Evaluation | ✅ Completed   | Training ongoing                   |
+| Model Fine-tuning   | ✅ in-progress | model is so bad                    |
 
 ## 1. Dataset Progress
 
-- **Total images:** [e.g., 4,200]
-- **Train/Val/Test split:** [e.g., 70%/15%/15% or 2,940/630/630]
-- **Classes implemented:** [e.g., 6 classes: plastic, metal, paper, glass, organic, other]
-- **Preprocessing applied:** Resize(640), normalization, augmentation (flip, rotate, brightness)
+- **Total images:** 2203
+- **Train/Val/Test split:** 80%/10%/10%
+- **Classes implemented:** [standing, laying, sitting]
+- **Preprocessing applied:** Resize(640), normalization, augmentation (thermalization, contrast, hue, shear)
 
 **Sample data preview:**
-![Dataset Sample](images/dataset_sample.png)
+![Dataset Sample](datasets\processed_thermal\images\train\0.jpg)
 
 ## 2. Training Progress
 

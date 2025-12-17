@@ -1,13 +1,18 @@
-
 import cv2
 import numpy as np
 import os
 from pathlib import Path
 
 # --- CONFIGURATION ---
-SOURCE_DIR = "datasets/poses"  # Where you manually sorted images
-OUTPUT_DIR = "datasets/processed_thermal"
+SOURCE_DIR = "datasets/manual/set 4"  # Where you manually sorted images
+OUTPUT_DIR = "datasets/processed_manuals_4"
 IMG_SIZE = 640
+
+# Realistic thermal temperature mapping (in Celsius to colormap values)
+BODY_CORE_TEMP = 190      # ~36.5°C (torso, head core)
+BODY_WARM_TEMP = 170      # ~34°C (upper limbs, upper torso)
+BODY_EXTREMITY_TEMP = 140 # ~31°C (hands, feet)
+AMBIENT_TEMP = 75         # ~19°C (room temperature)
 
 # Map folder names to YOLO Class IDs
 CLASS_MAP = {
@@ -30,90 +35,75 @@ def create_yolo_label(img_shape, bbox):
     return f"{x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}"
 
 def process_image(img_path, output_img_path, output_label_path, class_id):
-    # 1. Load as grayscale
-    img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
+    # 1. Load image
+    img = cv2.imread(str(img_path))
     if img is None: return
-
-    # 2. Binarize (Ensure perfect Black/White)
-    _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY_INV)
-
-    # 3. Find Contours
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours: return 
-
-    # Find the largest contour (the person)
-    c = max(contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(c)
     
-    # Check if box is too small (noise)
-    if w < 10 or h < 10: return
-
-    # 4. Generate YOLO Label Line
-    yolo_coords = create_yolo_label(img.shape, (x, y, w, h))
+    # 2. Resize to standard size
+    img_resized = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
+    
+    # 3. Convert to grayscale for luminance-based heat mapping
+    gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
+    
+    # 4. Create YOLO label for full image (person occupies most of frame)
+    # Assuming person is roughly centered, occupying 70-90% of image
+    center_ratio = np.random.uniform(0.75, 0.90)
+    yolo_coords = f"0.5 0.5 {center_ratio:.6f} {center_ratio:.6f}"
     label_line = f"{class_id} {yolo_coords}\n"
 
-    # 5. Create "Pseudo-Thermal" Visual
-
-    #resize to standard
-    resized_binary = cv2.resize(binary, (IMG_SIZE, IMG_SIZE))
+    # 5. Create "Pseudo-Thermal" Visual - Enhanced with inversion and contrast
     
-    # Apply Blur (Simulate heat dispersion)
-    blurred = cv2.GaussianBlur(resized_binary, (21, 21), 0)
+    # Invert (bright becomes cold, dark becomes hot)
+    inverted = 255 - gray
     
-    # Create natural heat gradient instead of random noise
-    # Generate smooth Perlin-like noise using multiple scales
+    # Contrast stretch (make hot/cold more pronounced)
+    normalized = cv2.normalize(inverted, None, 50, 230, cv2.NORM_MINMAX)
+    
+    # Apply Gaussian blur for heat dispersion effect
+    blurred = cv2.GaussianBlur(normalized, (15, 15), 0)
+    
     h, w = blurred.shape
     
-    # Randomize the heat center (simulates different body core positions)
-    # Offset from center by up to 20% of dimensions
-    center_offset_x = int(w * np.random.uniform(-0.2, 0.2))
-    center_offset_y = int(h * np.random.uniform(-0.2, 0.2))
-    center_x = w // 2 + center_offset_x
-    center_y = h // 2 + center_offset_y
+    # Use the processed thermal intensity
+    final_img = blurred.copy()
     
-    # Create base gradient (warmer at randomized core, cooler at extremities)
+    # Add stronger sensor noise (realistic thermal camera noise)
+    sensor_noise = np.random.normal(0, 2.5, (h, w)).astype(np.float32)
+    final_img = np.clip(final_img + sensor_noise, 0, 255).astype(np.uint8)
+    
+    # Add temporal noise (per-pixel random variation)
+    temporal_noise = np.random.uniform(-1.5, 1.5, (h, w)).astype(np.float32)
+    final_img = np.clip(final_img + temporal_noise, 0, 255).astype(np.uint8)
+    
+    # Add scan line effects (some thermal cameras have horizontal artifacts)
+    if np.random.rand() < 0.4:  # 40% of images
+        scan_lines = np.zeros((h, w), dtype=np.float32)
+        for row in range(0, h, np.random.randint(20, 40)):
+            scan_lines[row:row+1, :] = np.random.uniform(-2, 2)
+        final_img = np.clip(final_img + scan_lines, 0, 255).astype(np.uint8)
+    
+    # Add occasional dead pixels (sensor artifacts)
+    if np.random.rand() < 0.4:  # 40% of images have dead pixels
+        num_dead_pixels = np.random.randint(3, 12)
+        for _ in range(num_dead_pixels):
+            px, py = np.random.randint(0, w), np.random.randint(0, h)
+            final_img[py:py+2, px:px+2] = np.random.randint(40, 110)
+    
+    # Simulate lens vignetting (slight darkening at edges)
     y_coords, x_coords = np.ogrid[:h, :w]
-    distance_from_center = np.sqrt((x_coords - center_x)**2 + (y_coords - center_y)**2)
-    max_dist = np.sqrt(center_x**2 + center_y**2)
-    # Invert: 0 at edges (cold), 1 at center (hot)
-    radial_gradient = 1 - (distance_from_center / max_dist)
-    
-    # Add smooth multi-scale variation (simulates uneven body heat distribution)
-    gradient_1 = cv2.GaussianBlur(np.random.randn(h, w).astype(np.float32), (71, 71), 0)  
-    gradient_2 = cv2.GaussianBlur(np.random.randn(h, w).astype(np.float32), (41, 41), 0)
-    gradient_3 = cv2.GaussianBlur(np.random.randn(h, w).astype(np.float32), (21, 21), 0)
-
-    
-    # Combine gradients with different weights
-    heat_variation = (gradient_1 * 0.08 + gradient_2 * 0.05 + gradient_3 * 0.02)
-    heat_variation = (heat_variation - heat_variation.min()) / (heat_variation.max() - heat_variation.min())
-    
-    # Combine radial gradient with heat variation
-    natural_heat = radial_gradient * 0.75 + heat_variation * 0.25
-    
-    # Normalize heat map to use full 0-255 range
-    natural_heat = (natural_heat - natural_heat.min()) / (natural_heat.max() - natural_heat.min())
-    
-    # Create mask (binary: 1 where person is, 0 where background is)
-    mask = (blurred > 0).astype(np.uint8)
-
-    # Background Gradient (cyan to green range)
-    bg_gradient_1 = cv2.GaussianBlur(np.random.randn(h, w).astype(np.float32), (101, 101), 0)
-    bg_gradient_2 = cv2.GaussianBlur(np.random.randn(h, w).astype(np.float32), (51, 51), 0)
-    
-    bg_heat_variation = (bg_gradient_1 * 0.5 + bg_gradient_2 * 0.3)
-    bg_heat_variation = (bg_heat_variation - bg_heat_variation.min()) / (bg_heat_variation.max() - bg_heat_variation.min())
-    
-    # Scale person heat to warmer range (150-250) and background hotter (50-90 for cyan-green)
-    person_heat = (natural_heat * 200 + 50).astype(np.uint8)  # Range: 150-250 (yellow to red)
-    background_heat = (bg_heat_variation * 40 + 50).astype(np.uint8)  # Range: 50-90 (cyan to green)
-    
-    # Combine using mask
-    final_img = np.where(mask == 1, person_heat, background_heat)
+    y_normalized = y_coords.astype(np.float32) / h
+    x_normalized = x_coords.astype(np.float32) / w
+    vignette_mask = np.sqrt((x_normalized - 0.5)**2 + (y_normalized - 0.5)**2)
+    vignette_mask = 1 - (vignette_mask / vignette_mask.max()) * 0.15
+    final_img = (final_img * vignette_mask).astype(np.uint8)
     
     # Apply False Color (Thermal effect) - COLORMAP_JET uses blue->green->yellow->red
-    # Blue/Green = cold, Yellow/Red = hot
     thermal_img = cv2.applyColorMap(final_img, cv2.COLORMAP_JET)
+    
+    # Add slight motion blur occasionally (simulates movement/camera shake)
+    if np.random.rand() < 0.15:  # 15% of images
+        kernel_size = np.random.choice([3, 5])
+        thermal_img = cv2.GaussianBlur(thermal_img, (kernel_size, kernel_size), 0)
     
     # 6. Save Files
     cv2.imwrite(str(output_img_path), thermal_img)
@@ -130,19 +120,62 @@ for split in ['train', 'val']:
 
 # Process
 images_processed = 0
-for folder, class_id in CLASS_MAP.items():
-    folder_path = Path(SOURCE_DIR) / folder
-    files = list(folder_path.glob("*.*")) # Grab all images
+
+# Check if SOURCE_DIR has subfolders or is a flat directory
+source_path = Path(SOURCE_DIR)
+if not source_path.exists():
+    print(f"ERROR: Source directory '{SOURCE_DIR}' does not exist!")
+    exit(1)
+
+# Try to find subdirectories matching CLASS_MAP keys
+has_subfolders = any((source_path / folder).is_dir() for folder in CLASS_MAP.keys())
+
+if has_subfolders:
+    # Process organized folders (bending/lying/sitting/standing)
+    print("Processing organized folders...")
+    for folder, class_id in CLASS_MAP.items():
+        folder_path = source_path / folder
+        if not folder_path.exists():
+            print(f"Skipping {folder} - folder not found")
+            continue
+            
+        files = list(folder_path.glob("*.jpg")) + list(folder_path.glob("*.png")) + list(folder_path.glob("*.jpeg"))
+        print(f"Found {len(files)} images in {folder}")
+        
+        # Simple 80/20 Train/Val split
+        split_idx = int(len(files) * 0.8)
+        
+        for i, file in enumerate(files):
+            # Decide if train or val
+            subset = "train" if i < split_idx else "val"
+            
+            # Define output filenames
+            filename = f"{folder}_{file.stem}" # Unique name
+            out_img = Path(OUTPUT_DIR) / "images" / subset / (filename + ".jpg")
+            out_lbl = Path(OUTPUT_DIR) / "labels" / subset / (filename + ".txt")
+            
+            process_image(file, out_img, out_lbl, class_id)
+            images_processed += 1
+else:
+    # Process flat directory - all images as "standing" class by default
+    print(f"Processing flat directory: {SOURCE_DIR}")
+    files = list(source_path.glob("*.jpg")) + list(source_path.glob("*.png")) + list(source_path.glob("*.jpeg")) + list(source_path.glob("*.webp")) + list(source_path.glob("*.avif"))
+    print(f"Found {len(files)} images")
+    
+    if len(files) == 0:
+        print("ERROR: No images found! Make sure you have .jpg, .png, or .jpeg files")
+        exit(1)
     
     # Simple 80/20 Train/Val split
     split_idx = int(len(files) * 0.8)
+    class_id = "standing"  # Default class for flat directory
     
     for i, file in enumerate(files):
         # Decide if train or val
         subset = "train" if i < split_idx else "val"
         
         # Define output filenames
-        filename = f"{folder}_{file.stem}" # Unique name
+        filename = file.stem # Use original filename
         out_img = Path(OUTPUT_DIR) / "images" / subset / (filename + ".jpg")
         out_lbl = Path(OUTPUT_DIR) / "labels" / subset / (filename + ".txt")
         

@@ -21,6 +21,7 @@ Micro-small and Medium enterprises (MSMEs) in the Philippines rely heavily on ca
 
 - Sources:
   - https://universe.roboflow.com/philippine-peso-coin-counter-xbjpx/philippine-peso-coin-counter/browse?queryText=&pageSize=50&startingIndex=0&browseQuery=true, 53
+  - https://universe.roboflow.com/money-8wygp/philippine-coins-c04b3, 296
   - Synthetic Dataset: Generated via Python script using "Table-Top" textures (wood, plastic, concrete) from the Describable Textures Dataset (DTD). Background from https://www.kaggle.com/datasets/jmexpert/describable-textures-dataset-dtd/data. Target: 1,500 images.
 - Classes: ['1_CENTAVO' , '5_CENTAVOS', '10_CENTAVOS', '25_CENTAVOS', '1_PESO', '5_PESOS', '10_PESOS', '20_PESOS']
 - Acquisition:

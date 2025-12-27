@@ -6,21 +6,21 @@
 
 ## 📊 Current Status
 
-| Milestone           | Status         | Notes                              |
-| ------------------- | -------------- | ---------------------------------- |
-| Dataset Preparation | ✅ In-Progress | [X] images downloaded/preprocessed |
-| Initial Training    | ⏳ Planned     | [X] epochs completed               |
-| Baseline Evaluation | ⏳ Planned     | Training ongoing                   |
-| Model Fine-tuning   | ⏳ Planned     | model is so bad                    |
+| Milestone           | Status      | Notes                                                                                                 |
+| ------------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
+| Dataset Preparation | ✅ Complete | [X] images downloaded/preprocessed                                                                    |
+| Initial Training    | ✅ Complete | [X] 100 epochs completed                                                                              |
+| Baseline Evaluation | ✅ Complete | Needs fine tuning                                                                                     |
+| Model Fine-tuning   | ✅ Complete | Dataset needs more real life images;                                                                  |
+| Dataset Additions   | ✅ Complete | Added more images; 53 images and 296 images                                                           |
+| Evaluation          | ✅ Complete | test and val have high values now, but model is still not accurate from phone or webcam video quality |
 
 ## 1. Dataset Progress
 
-- **Total images:**
+- **Total images:** 10,000
 - **Train/Val/Test split:** 80%/10%/10%
-- **Classes implemented:**
-- **Preprocessing applied:**
-
-**Sample data preview:**
+- **Classes implemented:** 1,5,10,20 piso
+- **Preprocessing applied:** shear, hue, blur
 
 ## 2. Training Progress
 
@@ -29,24 +29,29 @@
 **Current Metrics:** UNFINISHED
 | Metric | Train | Val |
 |--------|-------|-----|
-| Loss | [0.45] | [0.62] |
 | mAP@0.5 | [78%] | [72%] |
 | Precision | [0.81] | [0.75] |
 | Recall | [0.73] | [0.68] |
+| **YOLOV12s (Fine Tuned)** | **0.990** | **0.975** | **0.962** | **0.874** | **~15** |
+**Training Curves (after tuning and additions)**
+**Current Metrics:** UNFINISHED
+| Metric | Val | Split |
+|--------|-------|-----|
+| mAP@0.5 | [99%] | [99%] |
+| Precision | [0.97] | [0.975] |
+| Recall | [0.951] | [0.962] |
+| mAP@0.5-95 | [0.819] | [0.874] |
 
 ## 3. Challenges Encountered & Solutions
 
-<!-- | Issue              | Status     | Resolution                           |
-| ------------------ | ---------- | ------------------------------------ |
-| CUDA out of memory | ✅ Fixed   | Reduced batch_size from 32→16        |
-| Class imbalance    | ⏳ Ongoing | Added class weights to loss function |
-| Slow validation    | ⏳ Planned | Implement early stopping             | -->
+| Issue                        | Status   | Resolution                                                                |
+| ---------------------------- | -------- | ------------------------------------------------------------------------- |
+| Class imbalance              | ✅ Fixed | Reduced classes with too much appearances                                 |
+| Visual Similarity (1₱ vs 5₱) | ✅ Fixed | Enforced consistent relative scaling in synthetic generator               |
+| High Occlusion (Coin Piles)  | ✅ Fixed | Tuned NMS threshold to be more permissive for overlapping bounding boxes  |
+| Specular Reflection (Glare)  | ✅ Fixed | Applied random brightness/contrast jitter and white noise in augmentation |
 
 ## 4. Next Steps (Before Final Submission)
 
-- [ ] Prepare Data
-- [ ] Complete training
-- [ ] Baseline comparison (vs. original pre-trained model)
-- [ ] Hyperparameter tuning (learning rate, augmentations)
-- [ ] Record 5-min demo video
-- [ ] Write complete README.md with results
+- [x] Record 5-min demo video
+- [x] Write complete README.md with results
